@@ -1,0 +1,62 @@
+# -------------------------- 通用CMake忽略规则 --------------------------
+# CMake生成的临时目录和文件
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+# CTest配置
+CTestTestfile.cmake
+Testing/
+
+# -------------------------- 构建目录忽略 --------------------------
+# 主构建目录
+build/
+build_debug/
+build_release/
+# IDE自动生成的构建目录
+cmake-build-debug/
+cmake-build-release/
+# 通用输出目录
+out/
+bin/
+obj/
+
+# -------------------------- CUDA专属忽略规则 --------------------------
+# CUDA编译的中间文件
+*.cuo
+*.cubin
+*.ptx
+*.fatbin
+*.gpu
+*.asm
+# CUDA调试文件
+*.pdb
+# CUDA生成的可执行文件（如果意外在源码目录生成）
+*.out
+*.exe
+
+# -------------------------- 编译器/系统忽略规则 --------------------------
+# Linux/macOS可执行文件（无后缀）
+reduce_v0_global_memory  # 你的可执行文件名称，按需添加
+# 临时文件
+*.tmp
+*.log
+*.swp  # Vim交换文件
+.DS_Store  # macOS隐藏文件
+Thumbs.db  # Windows缩略图文件
+
+# -------------------------- IDE/编辑器配置忽略 --------------------------
+# VS Code
+.vscode/
+# CLion/IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.suo
