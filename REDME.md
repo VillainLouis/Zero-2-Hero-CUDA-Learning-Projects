@@ -1,4 +1,4 @@
-# Zero 2 Hero Learning CUDA Projects
+# Zero 2 Hero: CUDA Learning  Projects
 
 ## Prerequisites
 - C++ and CUDA basics
