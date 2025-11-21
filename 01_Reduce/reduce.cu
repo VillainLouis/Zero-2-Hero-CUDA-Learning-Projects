@@ -8,6 +8,54 @@
 
 #define THREAD_PER_BLOCK 256
 
+
+// v2: fix bank confilct (TODO fix idle threads)
+__global__ void reduce2(float *d_in,float *d_out){
+    __shared__ float sdata[THREAD_PER_BLOCK];
+
+    // each thread loads one element from global to shared mem
+    int tid = threadIdx.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    sdata[tid] = d_in[i];
+    __syncthreads();
+
+    // do reduction in shared mem
+    for (unsigned int s = blockDim.x / 2; s > 0 ; s >>= 1) {
+        if (tid < s) {
+            sdata[tid] += sdata[tid + s];
+        }
+        __syncthreads();
+    }
+
+    // write result for this block to global mem
+    if (tid == 0) {
+        d_out[blockIdx.x] = sdata[tid];
+    }
+}
+
+// v1: fix warp divergence (TODO: bank conflict)
+__global__ void reduce1(float *d_in,float *d_out){
+    __shared__ float sdata[THREAD_PER_BLOCK];
+
+    //each thread loads one element from global memory to shared mem
+    unsigned int i=blockIdx.x*blockDim.x+threadIdx.x;
+    unsigned int tid=threadIdx.x;
+    sdata[tid]=d_in[i];
+    __syncthreads();
+
+    // do reduction in shared mem
+    for(unsigned int s = 1; s < blockDim.x; s *= 2){
+        int index = 2 * s * tid;
+        if (index < blockDim.x) {
+            sdata[index] += sdata[index+s];
+        }
+        __syncthreads();
+    }
+    
+    // write result for this block to global mem
+    if(tid==0)d_out[blockIdx.x]=sdata[tid];
+}
+
 // v0: Compute-bounded (warp-divergence)
 __global__ void reduce0(float *d_in,float *d_out){
     __shared__ float sdata[THREAD_PER_BLOCK];
@@ -71,13 +119,16 @@ int main(){
 
     int version = 0;
 
-    printf("Enter the test kernel version (current: 0-1):");
+    printf("Enter the test kernel version (current: 0-2):");
     scanf("%d", &version);
     if (version == 0) {
         reduce0<<<Grid,Block>>>(d_a,d_out);
     } 
     else if (version == 1){
         reduce1<<<Grid,Block>>>(d_a,d_out);
+    }
+    else if (version == 2){
+        reduce2<<<Grid,Block>>>(d_a,d_out);
     }
 
     cudaMemcpy(out,d_out,block_num*sizeof(float),cudaMemcpyDeviceToHost);
