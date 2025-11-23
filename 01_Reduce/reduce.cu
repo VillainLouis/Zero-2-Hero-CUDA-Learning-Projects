@@ -5,6 +5,7 @@
 #include "device_launch_parameters.h"
 #include <time.h>
 #include <sys/time.h>
+#include "../utils/cuda_timer.h"
 
 #define THREAD_PER_BLOCK 256
 
@@ -121,15 +122,18 @@ int main(){
 
     printf("Enter the test kernel version (current: 0-2):");
     scanf("%d", &version);
-    if (version == 0) {
-        reduce0<<<Grid,Block>>>(d_a,d_out);
-    } 
-    else if (version == 1){
-        reduce1<<<Grid,Block>>>(d_a,d_out);
-    }
-    else if (version == 2){
-        reduce2<<<Grid,Block>>>(d_a,d_out);
-    }
+
+    int repeat = 1000;
+    int warmup = 10;
+    GpuTimer timer(repeat, warmup, true);
+
+    if (version == 0)
+        timer.Measure(version, reduce0, Grid, Block, d_a, d_out);
+    else if (version == 1)
+        timer.Measure(version, reduce1, Grid, Block, d_a, d_out);
+    else if (version == 2)
+        timer.Measure(version, reduce2, Grid, Block, d_a, d_out);
+
 
     cudaMemcpy(out,d_out,block_num*sizeof(float),cudaMemcpyDeviceToHost);
 
