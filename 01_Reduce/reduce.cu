@@ -9,8 +9,32 @@
 
 #define THREAD_PER_BLOCK 256
 
+// v3: fix idle threads
+__global__ void reduce3(float *d_in,float *d_out){
+    __shared__ float sdata[THREAD_PER_BLOCK];
 
-// v2: fix bank confilct (TODO fix idle threads)
+    // each thread loads two numbers from global and then write the additon of the two numbers to shared mem
+    int tid = threadIdx.x;
+    int i = blockIdx.x * (blockDim.x * 2) + threadIdx.x; // each block cover 2*blockDim.x numbers
+    sdata[tid] = d_in[i] + d_in[i+blockDim.x]; // thread tid handles d_in[i] and d_in[i + blockDim.x]
+    __syncthreads();
+
+    // do reduction in shared mem
+    for (unsigned int s = blockDim.x / 2; s > 0 ; s >>= 1) {
+        if (tid < s) {
+            sdata[tid] += sdata[tid + s];
+        }
+        __syncthreads();
+    }
+
+    // write result for this block to global mem
+    if (tid == 0) {
+        d_out[blockIdx.x] = sdata[tid];
+    }
+}
+
+
+// v2: fix bank confilct
 __global__ void reduce2(float *d_in,float *d_out){
     __shared__ float sdata[THREAD_PER_BLOCK];
 
@@ -115,35 +139,74 @@ int main(){
 
     cudaMemcpy(d_a,a,N*sizeof(float),cudaMemcpyHostToDevice);
 
-    dim3 Grid( N/THREAD_PER_BLOCK,1);
-    dim3 Block( THREAD_PER_BLOCK,1);
-
     int version = 0;
 
-    printf("Enter the test kernel version (current: 0-2):");
+    printf("Enter the test kernel version (current: 0-3):");
     scanf("%d", &version);
 
     int repeat = 1000;
     int warmup = 10;
     GpuTimer timer(repeat, warmup, true);
 
-    if (version == 0)
+    if (version == 0) {
+        dim3 Grid( N/THREAD_PER_BLOCK,1);
+        dim3 Block( THREAD_PER_BLOCK,1);
         timer.Measure(version, reduce0, Grid, Block, d_a, d_out);
-    else if (version == 1)
+    }
+    else if (version == 1) {
+        dim3 Grid( N/THREAD_PER_BLOCK,1);
+        dim3 Block( THREAD_PER_BLOCK,1);
         timer.Measure(version, reduce1, Grid, Block, d_a, d_out);
-    else if (version == 2)
-        timer.Measure(version, reduce2, Grid, Block, d_a, d_out);
+        cudaMemcpy(out,d_out,block_num*sizeof(float),cudaMemcpyDeviceToHost);
 
-
-    cudaMemcpy(out,d_out,block_num*sizeof(float),cudaMemcpyDeviceToHost);
-
-    if(check(out,res,block_num))printf("the ans is right\n");
-    else{
-        printf("the ans is wrong\n");
-        for(int i=0;i<block_num;i++){
-            printf("%lf ",out[i]);
+        if(check(out,res,block_num))printf("the ans is right\n");
+        else{
+            printf("the ans is wrong\n");
+            for(int i=0;i<block_num;i++){
+                printf("%lf ",out[i]);
+            }
+            printf("\n");
         }
-        printf("\n");
+    }
+    else if (version == 2) {
+        dim3 Grid( N/THREAD_PER_BLOCK,1);
+        dim3 Block( THREAD_PER_BLOCK,1);
+        timer.Measure(version, reduce2, Grid, Block, d_a, d_out);
+        
+        cudaMemcpy(out,d_out,block_num*sizeof(float),cudaMemcpyDeviceToHost);
+
+        if(check(out,res,block_num))printf("the ans is right\n");
+        else{
+            printf("the ans is wrong\n");
+            for(int i=0;i<block_num;i++){
+                printf("%lf ",out[i]);
+            }
+            printf("\n");
+        }
+    }
+    else if (version == 3) {
+        int NUM_PER_BLOCK = 2*THREAD_PER_BLOCK; // each thread load and add 2 data elements 
+        int BLOCK_NUM = N / NUM_PER_BLOCK;
+        for(int i = 0; i < BLOCK_NUM; i++){
+            float cur = 0;
+            for(int j = 0;j < NUM_PER_BLOCK; j++){
+                cur += a[i*NUM_PER_BLOCK+j];
+            }
+            res[i] = cur;
+        }
+        dim3 Grid( BLOCK_NUM, 1);
+        dim3 Block( THREAD_PER_BLOCK, 1);
+        timer.Measure(version, reduce3, Grid, Block, d_a, d_out);
+        cudaMemcpy(out,d_out,BLOCK_NUM*sizeof(float),cudaMemcpyDeviceToHost);
+
+        if(check(out,res,BLOCK_NUM))printf("the ans is right\n");
+        else{
+            printf("the ans is wrong\n");
+            for(int i=0;i<BLOCK_NUM;i++){
+                printf("%lf ",out[i]);
+            }
+            printf("\n");
+        }
     }
 
     cudaFree(d_a);

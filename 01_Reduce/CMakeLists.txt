@@ -2,7 +2,7 @@
 add_definitions(-DENABLE_KERNEL_PROFILE=1)
 
 # 添加可执行文件
-add_executable(reduce reduce.cu ../utils/cuda_timer.h)
+add_executable(reduce reduce.cu)
 
 # 链接 CUDA 库：统一使用现代导入目标，移除旧版变量
 target_link_libraries(reduce PRIVATE 
@@ -20,5 +20,5 @@ endif()
 
 # 可选：指定 CUDA 架构（避免自动检测的兼容性问题）
 set_target_properties(reduce PROPERTIES
-    CUDA_ARCHITECTURES 86  # 根据你的 GPU 架构调整，如 75=Turing、80=Ampere、90=Hopper | RTX 3090 / 3080 / 3070 Ampere (GA102/GA104) 8.6（即 86）
+    CUDA_ARCHITECTURES "80;86"  # 根据你的 GPU 架构调整，如 75=Turing、80=Ampere、90=Hopper | RTX 3090 / 3080 / 3070 Ampere (GA102/GA104) 8.6（即 86）
 )
