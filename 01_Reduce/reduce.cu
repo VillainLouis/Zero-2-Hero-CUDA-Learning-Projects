@@ -9,6 +9,44 @@
 
 #define THREAD_PER_BLOCK 256
 
+// v4: unrolling last warp
+__device__ void warpReduce(volatile float *cache, int tid) { 
+    // 'volatile' tells the compiler not to cache or reorder accesses to this memory,
+    // ensuring that each thread reads the latest value from shared memory.
+    cache[tid] += cache[tid + 32];
+    cache[tid] += cache[tid + 16];
+    cache[tid] += cache[tid + 8];
+    cache[tid] += cache[tid + 4];
+    cache[tid] += cache[tid + 2];
+    cache[tid] += cache[tid + 1];
+}
+
+__global__ void reduce4(float *d_in,float *d_out){
+    __shared__ float sdata[THREAD_PER_BLOCK];
+
+    // each thread loads two numbers from global and then write the additon of the two numbers to shared mem
+    int tid = threadIdx.x;
+    int i = blockIdx.x * (blockDim.x * 2) + threadIdx.x; // each block cover 2*blockDim.x numbers
+    sdata[tid] = d_in[i] + d_in[i+blockDim.x]; // thread tid handles d_in[i] and d_in[i + blockDim.x]
+    __syncthreads();
+
+    // do reduction in shared mem
+    for (unsigned int s = blockDim.x / 2; s > 32 ; s >>= 1) {
+        if (tid < s) {
+            sdata[tid] += sdata[tid + s];
+        }
+        __syncthreads();
+    }
+
+    // write result for this block to global mem
+    if (tid < 32) {
+        warpReduce(sdata, tid);
+    }
+    if (tid == 0) {
+        d_out[blockIdx.x] = sdata[tid];
+    }
+}
+
 // v3: fix idle threads
 __global__ void reduce3(float *d_in,float *d_out){
     __shared__ float sdata[THREAD_PER_BLOCK];
@@ -141,7 +179,7 @@ int main(){
 
     int version = 0;
 
-    printf("Enter the test kernel version (current: 0-3):");
+    printf("Enter the test kernel version (current: 0-4):");
     scanf("%d", &version);
 
     int repeat = 1000;
@@ -197,6 +235,30 @@ int main(){
         dim3 Grid( BLOCK_NUM, 1);
         dim3 Block( THREAD_PER_BLOCK, 1);
         timer.Measure(version, reduce3, Grid, Block, d_a, d_out);
+        cudaMemcpy(out,d_out,BLOCK_NUM*sizeof(float),cudaMemcpyDeviceToHost);
+
+        if(check(out,res,BLOCK_NUM))printf("the ans is right\n");
+        else{
+            printf("the ans is wrong\n");
+            for(int i=0;i<BLOCK_NUM;i++){
+                printf("%lf ",out[i]);
+            }
+            printf("\n");
+        }
+    }
+    else if (version == 4) {
+        int NUM_PER_BLOCK = 2*THREAD_PER_BLOCK; // each thread load and add 2 data elements 
+        int BLOCK_NUM = N / NUM_PER_BLOCK;
+        for(int i = 0; i < BLOCK_NUM; i++){
+            float cur = 0;
+            for(int j = 0;j < NUM_PER_BLOCK; j++){
+                cur += a[i*NUM_PER_BLOCK+j];
+            }
+            res[i] = cur;
+        }
+        dim3 Grid( BLOCK_NUM, 1);
+        dim3 Block( THREAD_PER_BLOCK, 1);
+        timer.Measure(version, reduce4, Grid, Block, d_a, d_out);
         cudaMemcpy(out,d_out,BLOCK_NUM*sizeof(float),cudaMemcpyDeviceToHost);
 
         if(check(out,res,BLOCK_NUM))printf("the ans is right\n");
