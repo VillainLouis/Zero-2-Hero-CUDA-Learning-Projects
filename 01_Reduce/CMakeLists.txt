@@ -1,5 +1,8 @@
 # 1. 全局定义预处理器宏（放在 add_executable 之前）
-add_definitions(-DENABLE_KERNEL_PROFILE=1)
+add_definitions(-DENABLE_KERNEL_PROFILE=0)
+
+# 导出编译命令文件
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # 添加可执行文件
 add_executable(reduce reduce.cu)
