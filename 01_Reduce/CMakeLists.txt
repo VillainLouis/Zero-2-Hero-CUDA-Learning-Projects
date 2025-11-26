@@ -6,6 +6,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # 添加可执行文件
 add_executable(reduce reduce.cu)
+add_executable(reduce_multi_add reduce_multi_add.cu)
 
 # 链接 CUDA 库：统一使用现代导入目标，移除旧版变量
 target_link_libraries(reduce PRIVATE 
